@@ -8,9 +8,10 @@ Automatically populates the Voxiro map with Lagos traffic, flood, and road incid
 Every 30 minutes:
   Google Alerts RSS feeds
         ↓
-  Claude AI parses raw text
+  Keyword parser → incident type, severity, location name
         ↓
-  Google Geocoding API → lat/lng
+  4-layer geocoder → lat/lng
+  (memory cache → 90+ hardcoded Lagos areas → Firestore cache → Google API)
         ↓
   Deduplication check
         ↓
@@ -57,25 +58,20 @@ For each: **Show Options** → **Deliver to: RSS Feed** → **Create Alert**
 
 Copy each RSS URL (looks like `https://www.google.com/alerts/feeds/XXXXX/XXXXX`)
 
-### 4. Set up Google Geocoding API
+### 4. Set up Google Geocoding API (optional)
 
-1. Go to [console.cloud.google.com](https://console.cloud.google.com)
-2. Create a new project or use existing
-3. Enable **Geocoding API**
-4. Go to **Credentials** → **Create API Key**
+The pipeline has 90+ hardcoded Lagos locations and a Firestore persistent cache, so the Google Geocoding API is only called for locations not already known. For MVP this is optional — add the key when you start seeing reports fall back to the Lagos city centre coordinates (`6.5244, 3.3792`).
+
+If you want to set it up:
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) → select your Firebase project
+2. Enable **Geocoding API**
+3. Go to **Credentials** → **Create API Key** → restrict it to Geocoding API only
+4. Set a daily quota cap (e.g. 500 requests/day) to prevent runaway billing
 5. Copy the key
 
-> **Cost**: $5 per 1,000 geocoding calls. With 30 reports/day, that's ~$4.50/month.
+> **Cost**: Free tier covers 10,000 requests/month. With caching, typical usage is well under 100/month.
 
-### 5. Get Anthropic API Key
-
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Create API Key
-3. Copy it
-
-> **Cost**: Claude Sonnet is ~$3 per million tokens. Parsing 50 reports/day costs roughly $0.10/day.
-
-### 6. Configure environment
+### 5. Configure environment
 
 ```bash
 cp .env.example .env
@@ -86,9 +82,8 @@ Edit `.env` and fill in:
 ```env
 FIREBASE_SERVICE_ACCOUNT_PATH=./serviceAccountKey.json
 FIREBASE_PROJECT_ID=voxiro
-ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_ALERTS_RSS_URLS=https://www.google.com/alerts/feeds/URL1,https://www.google.com/alerts/feeds/URL2
-GOOGLE_GEOCODING_API_KEY=AIza...
+GOOGLE_GEOCODING_API_KEY=AIza...   # optional — see Step 4
 SCRAPE_INTERVAL_MINUTES=30
 REPORT_EXPIRY_HOURS=2.5
 DEBUG=true
@@ -195,9 +190,8 @@ Phase 5 (Week 4):   Points/leaderboard system → users collection
 | Service | Usage | Monthly Cost |
 |---|---|---|
 | Firebase Firestore | ~1,000 reads/writes/day | Free tier |
-| Claude API | ~50 reports/day parsed | ~$3 |
-| Google Geocoding | ~50 geocodes/day | ~$4.50 |
+| Google Geocoding API | <100 calls/month (cached) | Free tier (10k/month free) |
 | Google Alerts | Unlimited | Free |
-| **Total** | | **~$7.50/month** |
+| **Total** | | **~$0/month** |
 
 Scales to ~50,000 users before needing to optimize.
