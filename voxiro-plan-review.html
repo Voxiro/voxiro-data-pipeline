@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voxiro — Plan Review</title>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface-2: #222222;
+      --border: #2a2a2a;
+      --orange: #FF9500;
+      --orange-dim: rgba(255, 149, 0, 0.12);
+      --red: #FF3B30;
+      --red-dim: rgba(255, 59, 48, 0.12);
+      --green: #30D158;
+      --green-dim: rgba(48, 209, 88, 0.12);
+      --yellow: #FFD60A;
+      --yellow-dim: rgba(255, 214, 10, 0.1);
+      --blue: #0A84FF;
+      --blue-dim: rgba(10, 132, 255, 0.1);
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --text-dim: #555;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --mono: "SF Mono", "Fira Code", "Fira Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ── */
+    .page {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    /* ── Header ── */
+    .header {
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .tag {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: var(--orange-dim);
+      color: var(--orange);
+      border: 1px solid rgba(255, 149, 0, 0.25);
+    }
+
+    .date {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+
+    h1 span {
+      color: var(--orange);
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    /* ── Verdict Banner ── */
+    .verdict {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--orange);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 40px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .verdict-icon {
+      font-size: 24px;
+      line-height: 1;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .verdict-content h2 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--orange);
+    }
+
+    .verdict-content p {
+      color: #ccc;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Action Checklist ── */
+    .checklist-section {
+      margin-bottom: 48px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+
+    .checklist-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .checklist-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .progress-text {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .progress-bar {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--orange);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .check-item {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+
+    .check-item:hover {
+      background: var(--surface-2);
+    }
+
+    .check-item.done {
+      opacity: 0.5;
+    }
+
+    .check-item.done .check-text {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    .check-box {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      margin-top: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .check-item:hover .check-box {
+      border-color: var(--orange);
+    }
+
+    .check-item.done .check-box {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .check-item.done .check-box::after {
+      content: "✓";
+      font-size: 12px;
+      font-weight: 700;
+      color: #000;
+    }
+
+    .check-right {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .check-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 3px;
+      flex-wrap: wrap;
+    }
+
+    .check-text {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .priority-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+
+    .priority-critical {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid rgba(255, 59, 48, 0.3);
+    }
+
+    .priority-high {
+      background: var(--orange-dim);
+      color: var(--orange);
+      border: 1px solid rgba(255, 149, 0, 0.3);
+    }
+
+    .priority-medium {
+      background: var(--yellow-dim);
+      color: var(--yellow);
+      border: 1px solid rgba(255, 214, 10, 0.25);
+    }
+
+    .priority-low {
+      background: var(--blue-dim);
+      color: var(--blue);
+      border: 1px solid rgba(10, 132, 255, 0.25);
+    }
+
+    .check-note {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .check-note code {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: rgba(255,255,255,0.06);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: #ccc;
+    }
+
+    /* ── Assessment Sections ── */
+    .assessments {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .assess-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .assess-header {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .assess-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .assess-icon {
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .assess-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .verdict-pill {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+
+    .verdict-strong {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid rgba(48, 209, 88, 0.3);
+    }
+
+    .verdict-caution {
+      background: var(--yellow-dim);
+      color: var(--yellow);
+      border: 1px solid rgba(255, 214, 10, 0.25);
+    }
+
+    .assess-body {
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .assess-group h4 {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+
+    .point-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .point-list li {
+      display: flex;
+      gap: 10px;
+      font-size: 14px;
+      line-height: 1.55;
+      color: #d0d0d0;
+    }
+
+    .point-list li .dot {
+      flex-shrink: 0;
+      margin-top: 7px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+
+    .point-list li.good .dot { background: var(--green); }
+    .point-list li.warn .dot { background: var(--yellow); }
+    .point-list li.bad .dot  { background: var(--red); }
+
+    .point-list li strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .inline-alert {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .inline-alert.red {
+      background: var(--red-dim);
+      border: 1px solid rgba(255, 59, 48, 0.2);
+      color: #f0a0a0;
+    }
+
+    .inline-alert.orange {
+      background: var(--orange-dim);
+      border: 1px solid rgba(255, 149, 0, 0.2);
+      color: #f0c090;
+    }
+
+    .inline-alert-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 40px 0;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: gap;
+      gap: 8px;
+    }
+
+    .footer-left {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .footer-right {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-meta">
+      <span class="tag">Plan Review</span>
+      <span class="date">April 22, 2026</span>
+    </div>
+    <h1>Voxiro — <span>Is the plan sound?</span></h1>
+    <p class="subtitle">Business logic · Technical logic · User logic · Action checklist</p>
+  </div>
+
+  <!-- Verdict -->
+  <div class="verdict">
+    <div class="verdict-icon">⚡</div>
+    <div class="verdict-content">
+      <h2>Overall: Strong plan with one critical risk</h2>
+      <p>The strategy is well-conceived, the cold-start solution is clever, and the MVP scope is tight. The single biggest risk is geocoding accuracy — a map full of pins in the wrong location is worse than an empty map. Everything else is fixable. Do not start building the app until the pipeline is confirmed to be producing accurate data.</p>
+    </div>
+  </div>
+
+  <!-- Action Checklist -->
+  <div class="checklist-section">
+    <p class="section-label">Before you write a single line of app code</p>
+    <div class="checklist-header">
+      <h2 class="checklist-title">Action Checklist</h2>
+      <span class="progress-text" id="progress-text">0 / 9 done</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+
+    <div class="checklist" id="checklist">
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Add Google Geocoding API key to <code>.env</code></span>
+            <span class="priority-badge priority-critical">Critical</span>
+          </div>
+          <p class="check-note">The pipeline code already supports it — it's just not configured. Without it, many pins will land in the wrong place. Get a key from Google Cloud Console, add <code>GOOGLE_GEOCODING_API_KEY=AIza...</code> to <code>.env</code>.</p>
+        </div>
+      </div>
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Run the pipeline once and verify data in Firestore</span>
+            <span class="priority-badge priority-critical">Critical</span>
+          </div>
+          <p class="check-note">Run <code>npm run dev -- --once</code>, then open the Firestore console. Confirm at least 5 reports exist with correct Lagos coordinates before touching the app. If coords look wrong, the geocoding key is the first fix.</p>
+        </div>
+      </div>
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Add Firestore composite indexes</span>
+            <span class="priority-badge priority-critical">Critical</span>
+          </div>
+          <p class="check-note">The app's map and feed queries filter on multiple fields (<code>isActive + timestamp</code>, <code>isActive + location.area + timestamp</code>). Without composite indexes these queries will fail or time out at scale. Set them up in the Firebase console before beta.</p>
+        </div>
+      </div>
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Decide and document the push notification geofencing approach</span>
+            <span class="priority-badge priority-high">High</span>
+          </div>
+          <p class="check-note">"Flood reported 0.8km from you" is a killer feature but Firestore has no native geospatial queries. You need a concrete plan before Week 3: geohashing, a Cloud Function with Distance Matrix API, or a third-party service. Don't discover this mid-build.</p>
+        </div>
+      </div>
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Expand the hardcoded Lagos areas fallback list</span>
+            <span class="priority-badge priority-high">High</span>
+          </div>
+          <p class="check-note">Currently only 28 areas are hardcoded in <code>src/processors/parseReport.ts</code>. Expand to 80–100 key Lagos areas as a geocoding fallback. This is cheap insurance while the Geocoding API key is being set up. One afternoon of work.</p>
+        </div>
+      </div>
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Fix or remove the broken Claude integration</span>
+            <span class="priority-badge priority-high">High</span>
+          </div>
+          <p class="check-note"><code>src/lib/anthropic.ts</code> is empty and <code>parseReport-claude.ts</code> calls functions that don't exist. The keyword parser works fine for MVP — either delete the Claude files to avoid confusion, or properly implement the Anthropic SDK integration. Don't leave broken code that looks like a working upgrade path.</p>
+        </div>
+      </div>
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Define the auth strategy (anonymous vs phone OTP)</span>
+            <span class="priority-badge priority-high">High</span>
+          </div>
+          <p class="check-note">The plan lists this as an open question. Decide before building any screen that touches auth. Recommendation: anonymous first with optional phone upgrade — lowest friction for Lagos users, preserves leaderboard integrity later.</p>
+        </div>
+      </div>
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Name 3 specific B2B targets for Phase 4 sponsorships</span>
+            <span class="priority-badge priority-medium">Medium</span>
+          </div>
+          <p class="check-note">"Logistics companies sponsor leaderboards" needs to become a named list (e.g. Kwik, Gokada, DHL Nigeria) with a first-contact plan. Don't wait until Week 4 to think about this — early conversations inform product decisions.</p>
+        </div>
+      </div>
+
+      <div class="check-item" onclick="toggle(this)">
+        <div class="check-box"></div>
+        <div class="check-right">
+          <div class="check-top">
+            <span class="check-text">Remove unused <code>axios</code> and <code>zod</code> from <code>package.json</code></span>
+            <span class="priority-badge priority-low">Low</span>
+          </div>
+          <p class="check-note">Both are listed as dependencies but never imported anywhere in the codebase. The pipeline uses native <code>fetch()</code> and manual validation instead. Remove them to keep the install clean and dependencies honest.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Detailed Assessments -->
+  <p class="section-label" style="margin-bottom: 20px;">Detailed breakdown</p>
+  <div class="assessments">
+
+    <!-- Business -->
+    <div class="assess-section">
+      <div class="assess-header">
+        <div class="assess-header-left">
+          <span class="assess-icon">📈</span>
+          <span class="assess-title">Business Logic</span>
+        </div>
+        <span class="verdict-pill verdict-strong">Sound</span>
+      </div>
+      <div class="assess-body">
+        <div class="assess-group">
+          <h4>What's right</h4>
+          <ul class="point-list">
+            <li class="good"><span class="dot"></span><span>Cold-start via RSS pipeline is the correct answer to the empty map problem. Every location app dies on Day 1 without data.</span></li>
+            <li class="good"><span class="dot"></span><span><strong>WhatsApp bridge (Phase 2)</strong> is genuinely smart for Lagos. Users already share traffic in WhatsApp groups — this meets them where they are and removes the app install barrier entirely.</span></li>
+            <li class="good"><span class="dot"></span><span>Recruiting 20–30 power riders beats passive user growth for a content network. Correct instinct.</span></li>
+            <li class="good"><span class="dot"></span><span>Points without cash-per-report is the right anti-spam design. Paying per submission would tank data quality immediately.</span></li>
+            <li class="good"><span class="dot"></span><span>Hyper-focus on Lagos for MVP is correct. Do not expand until the Lekki corridor is provably alive.</span></li>
+          </ul>
+        </div>
+        <div class="assess-group">
+          <h4>What needs revisiting</h4>
+          <ul class="point-list">
+            <li class="warn"><span class="dot"></span><span><strong>B2B monetisation is underdeveloped.</strong> "Logistics companies sponsor leaderboards" needs named targets and a first-contact plan before Week 4, not after.</span></li>
+            <li class="warn"><span class="dot"></span><span><strong>No Waze answer.</strong> The plan correctly says "we don't compete with routing" but doesn't give a one-line reason for why a user opens Voxiro instead of Waze for local awareness. You need that answer before acquisition starts.</span></li>
+            <li class="warn"><span class="dot"></span><span><strong>Google Maps API billing</strong> has no cost estimate in the plan. At 50k MAU the Maps SDK bill becomes significant. Worth a napkin-math check before launch.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Technical -->
+    <div class="assess-section">
+      <div class="assess-header">
+        <div class="assess-header-left">
+          <span class="assess-icon">⚙️</span>
+          <span class="assess-title">Technical Logic</span>
+        </div>
+        <span class="verdict-pill verdict-caution">Mostly Sound — 2 Issues</span>
+      </div>
+      <div class="assess-body">
+        <div class="assess-group">
+          <h4>What's built well (from code inspection)</h4>
+          <ul class="point-list">
+            <li class="good"><span class="dot"></span><span>Clean TypeScript architecture: scrapers → processors → services. Well separated, easy to extend.</span></li>
+            <li class="good"><span class="dot"></span><span>Keyword parser is MVP-appropriate. No API costs, works on day one, good enough for cold-start.</span></li>
+            <li class="good"><span class="dot"></span><span>Deduplication logic is correct — 1-hour window, same type + area prevents duplicate spam.</span></li>
+            <li class="good"><span class="dot"></span><span>Cron scheduling (30min scrape + 15min expiry) matches the product requirements exactly.</span></li>
+            <li class="good"><span class="dot"></span><span>Stack choice (Firebase + React Native + Expo) is right for this context: real-time listeners, no DevOps, one codebase for Android and iOS.</span></li>
+          </ul>
+        </div>
+
+        <div class="inline-alert red">
+          <span class="inline-alert-icon">🚨</span>
+          <span><strong>Issue 1 — Geocoding accuracy is the top risk and it's not solved.</strong> The pipeline has 28 hardcoded Lagos areas. Lagos has hundreds of named locations. Incidents not matching those 28 get an approximate coordinate or are dropped entirely. A pin placed 2km from the actual incident destroys trust faster than no pin at all. The Google Geocoding API key is already supported in the code — it just hasn't been configured.</span>
+        </div>
+
+        <div class="inline-alert orange">
+          <span class="inline-alert-icon">⚠️</span>
+          <span><strong>Issue 2 — The Claude integration is a broken skeleton.</strong> <code>anthropic.ts</code> is empty and <code>parseReport-claude.ts</code> calls functions that don't exist. The plan presents Claude as a clean upgrade path — in reality, enabling it would crash the pipeline immediately. Either clean it up or delete it, but don't leave it as-is.</span>
+        </div>
+
+        <div class="assess-group">
+          <h4>Other gaps (minor)</h4>
+          <ul class="point-list">
+            <li class="warn"><span class="dot"></span><span>No Firestore composite indexes are defined. The queries in the plan (<code>isActive + timestamp</code>, <code>isActive + location.area + timestamp</code>) will be slow or fail without them.</span></li>
+            <li class="warn"><span class="dot"></span><span>The LASMA scraper file exists but returns an empty array. It's a placeholder — fine to leave, but don't count it as a live data source.</span></li>
+            <li class="warn"><span class="dot"></span><span><code>axios</code> and <code>zod</code> are in <code>package.json</code> but never imported anywhere. The code uses native <code>fetch()</code> instead.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- User -->
+    <div class="assess-section">
+      <div class="assess-header">
+        <div class="assess-header-left">
+          <span class="assess-icon">👤</span>
+          <span class="assess-title">User Logic</span>
+        </div>
+        <span class="verdict-pill verdict-strong">Strong — 1 Gap</span>
+      </div>
+      <div class="assess-body">
+        <div class="assess-group">
+          <h4>What's right</h4>
+          <ul class="point-list">
+            <li class="good"><span class="dot"></span><span><strong>3-tap report flow</strong> is the correct constraint. Do not let scope creep add a fourth step.</span></li>
+            <li class="good"><span class="dot"></span><span>Auto-detected location removes the single biggest UX friction point. Never make users type an address.</span></li>
+            <li class="good"><span class="dot"></span><span>Relative timestamps ("5 mins ago") are correct. Absolute timestamps kill trust perception for incident reports.</span></li>
+            <li class="good"><span class="dot"></span><span>"All clear in your area" empty state is the right call. A blank map with no context reads as broken.</span></li>
+            <li class="good"><span class="dot"></span><span>Offline awareness (show last known state on 3G drop) is noted in the plan. This must be explicitly handled in the app code, not just documented.</span></li>
+            <li class="good"><span class="dot"></span><span>Points tier names (Area Scout, Road Commander, Voxiro Legend) are Lagos-appropriate without being forced.</span></li>
+          </ul>
+        </div>
+
+        <div class="inline-alert orange">
+          <span class="inline-alert-icon">⚠️</span>
+          <span><strong>Gap — Push notifications require geofencing, and that's non-trivial.</strong> "Flood reported 0.8km from you" is the killer feature but Firestore has no native geospatial query support. Week 3 lists this as a task but gives no implementation path. This needs a concrete approach decided before Week 3 starts — geohashing, a Cloud Function, or a third-party service. Don't discover this mid-build.</span>
+        </div>
+
+        <div class="assess-group">
+          <h4>One watch item</h4>
+          <ul class="point-list">
+            <li class="warn"><span class="dot"></span><span>The confirmation system (tap → +1 count, slightly larger pin) has no abuse prevention for MVP. This is acceptable to defer, but add a Week 4 revisit to check confirmation abuse once real data exists.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span class="footer-left">Voxiro · voxiro-data-pipeline</span>
+    <span class="footer-right">Generated April 22, 2026</span>
+  </div>
+
+</div>
+
+<script>
+  function toggle(el) {
+    el.classList.toggle('done');
+    updateProgress();
+  }
+
+  function updateProgress() {
+    const items = document.querySelectorAll('.check-item');
+    const done = document.querySelectorAll('.check-item.done').length;
+    const total = items.length;
+    const pct = total > 0 ? (done / total) * 100 : 0;
+
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-text').textContent = done + ' / ' + total + ' done';
+
+    const fill = document.getElementById('progress-fill');
+    if (pct === 100) {
+      fill.style.background = 'var(--green)';
+    } else if (pct >= 50) {
+      fill.style.background = 'var(--orange)';
+    } else {
+      fill.style.background = 'var(--red)';
+    }
+  }
+
+  updateProgress();
+</script>
+</body>
+</html>
