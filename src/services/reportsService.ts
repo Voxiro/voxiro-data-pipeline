@@ -3,6 +3,7 @@
 // This is the single layer that touches the database
 
 import * as admin from "firebase-admin";
+import ngeohash from "ngeohash";
 import { getFirestore, COLLECTIONS } from "../lib/firebase";
 import { logger } from "../lib/logger";
 import type { FirestoreReport, ParsedReport } from "../types/report";
@@ -28,6 +29,7 @@ export async function saveReport(
 			lng: geocoded.lng,
 			address: geocoded.formattedAddress,
 			area: parsed.area,
+			geohash: ngeohash.encode(geocoded.lat, geocoded.lng, 6),
 		},
 		description: parsed.description,
 		severity: parsed.severity,

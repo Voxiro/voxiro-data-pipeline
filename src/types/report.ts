@@ -33,6 +33,7 @@ export interface Report {
 		lng: number;
 		address: string; // full readable address
 		area: string; // neighbourhood name e.g. "Lekki"
+		geohash: string; // precision-6 geohash — used for push notification radius queries
 	};
 	description: string;
 	severity: ReportSeverity;
