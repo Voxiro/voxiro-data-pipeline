@@ -1,18 +1,17 @@
 // src/index.ts
 // Voxiro Data Pipeline — Main Entry Point
 //
-// What this does:
-//   Every 30 minutes → scrapes Google Alerts RSS feeds
-//   → Claude parses raw text into structured reports
+// What this does (one run, triggered externally on a schedule — see
+// .github/workflows/pipeline.yml):
+//   Scrapes Google Alerts RSS feeds
+//   → Parses raw text into structured reports
 //   → Geocodes location names to lat/lng
 //   → Deduplicates against existing Firestore data
 //   → Saves new reports to Firestore
+//   → Expires old reports (keeps map fresh)
 //   → App map shows live data even before first user signs up
-//
-// Every 15 minutes → expires old reports (keeps map fresh)
 
 import "dotenv/config";
-import cron from "node-cron";
 import { initFirebase } from "./lib/firebase";
 // import { getAnthropicClient } from './lib/anthropic';
 import { fetchGoogleAlerts } from "./scrapers/googleAlerts";
@@ -126,47 +125,19 @@ async function runExpiryJob(): Promise<void> {
 }
 
 // --- Startup ---
+// Runs once and exits. Scheduling (every 30 min for the pipeline, every 15
+// min for expiry) is handled externally by GitHub Actions cron triggers.
 async function main(): Promise<void> {
 	logger.pipeline("Voxiro Pipeline Starting Up");
 
-	// Initialize connections
 	initFirebase();
-	// getAnthropicClient();
 
-	// Run once immediately on startup
 	await runPipeline();
 	await runExpiryJob();
 
-	// Check if --once flag passed (useful for testing)
-	if (process.argv.includes("--once")) {
-		logger.info("--once flag detected, exiting after single run");
-		process.exit(0);
-	}
-
-	const scrapeInterval = process.env.SCRAPE_INTERVAL_MINUTES ?? "30";
-
-	// Schedule pipeline every N minutes
-	// Cron format: "*/30 * * * *" = every 30 minutes
-	cron.schedule(`*/${scrapeInterval} * * * *`, async () => {
-		await runPipeline();
-	});
-
-	// Schedule expiry check every 15 minutes
-	cron.schedule("*/15 * * * *", async () => {
-		await runExpiryJob();
-	});
-
-	logger.success(
-		`Pipeline scheduled — scraping every ${scrapeInterval} mins, expiring every 15 mins`,
-	);
-	logger.info("Pipeline is running. Press Ctrl+C to stop.\n");
-}
-
-// Handle graceful shutdown
-process.on("SIGINT", () => {
-	logger.info("Shutting down pipeline...");
+	logger.success("Run complete, exiting");
 	process.exit(0);
-});
+}
 
 process.on("uncaughtException", (err) => {
 	logger.error("Uncaught exception", err);

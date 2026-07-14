@@ -1,0 +1,39 @@
+name: Run Voxiro Data Pipeline
+
+on:
+  schedule:
+    # Every 30 minutes. GitHub may delay a run under load — that's fine,
+    # reports have a multi-hour expiry window.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Write Firebase service account key
+        run: echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > /tmp/serviceAccountKey.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Run pipeline
+        run: node dist/index.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT_PATH: /tmp/serviceAccountKey.json
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GOOGLE_ALERTS_RSS_URLS: ${{ secrets.GOOGLE_ALERTS_RSS_URLS }}
+          GOOGLE_GEOCODING_API_KEY: ${{ secrets.GOOGLE_GEOCODING_API_KEY }}
+          REPORT_EXPIRY_HOURS: ${{ vars.REPORT_EXPIRY_HOURS }}
+          DEBUG: "true"
