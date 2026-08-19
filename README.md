@@ -171,6 +171,21 @@ service cloud.firestore {
 
 ---
 
+## Firestore Indexes
+
+`firestore.indexes.json` here and in `voxiro-app/firestore.indexes.json` are
+kept **identical** — both list the full union of every index either repo's
+queries need (this pipeline's `expireOldReports`/dedup queries, plus the app's
+live map/feed listener). `firebase deploy --only firestore:indexes` is
+declarative: it reconciles the *live* index set to exactly match whatever's
+in the local file, deleting anything not listed. With two repos pointed at
+the same Firestore project, a deploy from either one with a partial file
+would silently delete indexes the other repo depends on — this already broke
+the app's map/feed once. If you add a new query here that needs a new index,
+add it to both files, in both repos, in the same change.
+
+---
+
 ## What Gets Built on Top of This
 
 This pipeline is Phase 1. Everything else connects to the same `reports` Firestore collection:
