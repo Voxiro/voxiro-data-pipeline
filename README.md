@@ -149,25 +149,24 @@ Every report in the `reports` collection:
 
 ## Firestore Security Rules
 
-Add these rules in Firebase Console → Firestore → Rules:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Reports: anyone can read active reports, only server can write
-    match /reports/{reportId} {
-      allow read: if resource.data.isActive == true;
-      allow write: if false; // only Admin SDK (pipeline) can write
-    }
-    
-    // Pipeline state: server only
-    match /pipeline_state/{docId} {
-      allow read, write: if false;
-    }
-  }
-}
-```
+`voxiro-app/firestore.rules` is the only copy — this repo doesn't have its
+own and can't deploy rules at all (`firebase.json` here has no `"rules"`
+key). That's deliberate, not an oversight: this pipeline talks to Firestore
+exclusively via the Admin SDK (`src/lib/firebase.ts`
+`admin.credential.cert(serviceAccount)`), which bypasses security rules
+unconditionally, so nothing here has ever actually needed rules deployed
+from this repo. A stale local copy used to exist and be wired into
+`firebase.json` regardless — a leftover from before `voxiro-app` existed,
+never kept in sync, and different from what was actually documented even
+here (compare git history if curious). If it had ever been deployed
+(`firebase deploy` unscoped, or `--only firestore:rules`, run from this
+directory against the shared `voxiro-app` project), it would have replaced
+the app's real production rules with that stale stand-in — blocking every
+community report write, exposing inactive/flagged reports publicly, and
+locking out profile/leaderboard/confirmation access entirely, since it only
+covered `reports/` and `pipeline_state/`. Removed rather than fixed, since
+there was never a real need for it: if you need to change what the app's
+Firestore rules allow, edit `voxiro-app/firestore.rules` directly.
 
 ---
 
