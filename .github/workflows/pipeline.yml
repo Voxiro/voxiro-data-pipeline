@@ -7,10 +7,41 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
+# A delayed run must not overlap the next scheduled one — two concurrent runs
+# against the same project would race the deduplicator and double-write.
+concurrency:
+  group: voxiro-pipeline
+  cancel-in-progress: false
+
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+
+    # The destination project is declared HERE, in the repo, not in a secret.
+    # It used to come from `secrets.FIREBASE_PROJECT_ID`, which meant nothing
+    # in this codebase said where the data landed — and after the dev/prod
+    # split that secret still pointed at voxiro-app, so voxiro-prod would have
+    # launched with no external reports and, because expireOldReports() only
+    # runs at the end of a pipeline run, no expiry either. A project ID is not
+    # a secret; keeping it in the matrix makes the target reviewable.
+    #
+    # Both targets run every cycle: dev keeps live data to test against, prod
+    # gets the real feed. They are fully independent — separate Firestore
+    # databases, separate geocodeCache collections, separate dedup state.
+    strategy:
+      fail-fast: false # a prod failure must not cancel dev, or vice versa
+      matrix:
+        target:
+          - name: dev
+            project: voxiro-app
+            saSecret: FIREBASE_SERVICE_ACCOUNT_JSON
+          - name: prod
+            project: voxiro-prod
+            saSecret: FIREBASE_SERVICE_ACCOUNT_JSON_PROD
+
+    name: pipeline (${{ matrix.target.name }} → ${{ matrix.target.project }})
+
     steps:
       - uses: actions/checkout@v5
 
@@ -24,16 +55,30 @@ jobs:
       - run: npm run build
 
       - name: Write Firebase service account key
-        run: echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > /tmp/serviceAccountKey.json
         env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          SA_JSON: ${{ secrets[matrix.target.saSecret] }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::error::Secret ${{ matrix.target.saSecret }} is empty or unset — cannot write to ${{ matrix.target.project }}."
+            exit 1
+          fi
+          printf '%s' "$SA_JSON" > /tmp/serviceAccountKey.json
+          # Fail loudly here rather than deep inside initFirebase(), and prove
+          # the key actually belongs to the project this job targets — a key
+          # from the wrong project authenticates fine and silently writes to
+          # the wrong Firestore, which is the exact bug this matrix fixes.
+          KEY_PROJECT=$(node -p "require('/tmp/serviceAccountKey.json').project_id")
+          if [ "$KEY_PROJECT" != "${{ matrix.target.project }}" ]; then
+            echo "::error::Service account key is for '$KEY_PROJECT' but this job targets '${{ matrix.target.project }}'."
+            exit 1
+          fi
+          echo "Service account verified for $KEY_PROJECT"
 
       - name: Run pipeline
         run: node dist/index.js
         env:
           FIREBASE_SERVICE_ACCOUNT_PATH: /tmp/serviceAccountKey.json
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_PROJECT_ID: ${{ matrix.target.project }}
           GOOGLE_ALERTS_RSS_URLS: ${{ secrets.GOOGLE_ALERTS_RSS_URLS }}
           GOOGLE_GEOCODING_API_KEY: ${{ secrets.GOOGLE_GEOCODING_API_KEY }}
-          REPORT_EXPIRY_HOURS: ${{ vars.REPORT_EXPIRY_HOURS }}
           DEBUG: "true"

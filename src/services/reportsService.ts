@@ -6,9 +6,30 @@ import * as admin from "firebase-admin";
 import ngeohash from "ngeohash";
 import { getFirestore, COLLECTIONS } from "../lib/firebase";
 import { logger } from "../lib/logger";
-import type { FirestoreReport, ParsedReport } from "../types/report";
+import type {
+	FirestoreReport,
+	ParsedReport,
+	ReportType,
+} from "../types/report";
 
-const EXPIRY_HOURS = Number(process.env.REPORT_EXPIRY_HOURS ?? 2.5);
+// How long each incident type stays on the map, per VOXIRO_MVP_SPEC.md §6.
+// Mirrors `expiryHours` in voxiro-app/constants/incidents.ts — the app applies
+// these to community reports, this applies them to scraped ones, so the same
+// incident lives the same length of time whoever reported it.
+//
+// This used to be a single flat REPORT_EXPIRY_HOURS env var (default 2.5h) for
+// every type, which predates the per-type table: the spec decision landed in
+// the app repo and never made it here. The visible effect was floods clearing
+// 90 minutes early — the map reading "clear" while the road was still under
+// water — and a user-reported flood outliving a scraped one sitting right next
+// to it. Typed as a total Record so adding an incident type fails the build
+// here instead of silently falling back to a default.
+const EXPIRY_HOURS: Record<ReportType, number> = {
+	flood: 4,
+	traffic: 2,
+	accident: 2,
+	road_blockage: 3,
+};
 
 // Saves a new external report to Firestore
 export async function saveReport(
@@ -20,7 +41,9 @@ export async function saveReport(
 	const db = getFirestore();
 
 	const now = new Date();
-	const expiresAt = new Date(now.getTime() + EXPIRY_HOURS * 60 * 60 * 1000);
+	const expiresAt = new Date(
+		now.getTime() + EXPIRY_HOURS[parsed.type] * 60 * 60 * 1000,
+	);
 
 	const report: FirestoreReport = {
 		type: parsed.type,

@@ -81,11 +81,10 @@ Edit `.env` and fill in:
 
 ```env
 FIREBASE_SERVICE_ACCOUNT_PATH=./serviceAccountKey.json
-FIREBASE_PROJECT_ID=voxiro
+FIREBASE_PROJECT_ID=voxiro-app   # dev. Local runs should target dev, never voxiro-prod.
 GOOGLE_ALERTS_RSS_URLS=https://www.google.com/alerts/feeds/URL1,https://www.google.com/alerts/feeds/URL2
 GOOGLE_GEOCODING_API_KEY=AIza...   # optional — see Step 4
 SCRAPE_INTERVAL_MINUTES=30
-REPORT_EXPIRY_HOURS=2.5
 DEBUG=true
 ```
 
@@ -147,6 +146,72 @@ Every report in the `reports` collection:
 
 ---
 
+## Deployment Targets (dev + prod)
+
+There are two Firebase projects, and **this pipeline writes to both on every
+run**:
+
+| Target | Project       | Service account secret                 |
+| ------ | ------------- | -------------------------------------- |
+| dev    | `voxiro-app`  | `FIREBASE_SERVICE_ACCOUNT_JSON`        |
+| prod   | `voxiro-prod` | `FIREBASE_SERVICE_ACCOUNT_JSON_PROD`   |
+
+The targets are declared in `.github/workflows/pipeline.yml`'s `strategy.matrix`,
+**not** in a GitHub secret. That's deliberate. The workflow used to read the
+destination from `secrets.FIREBASE_PROJECT_ID`, which meant nothing in this
+codebase said where the data landed — and when `voxiro-prod` was split out,
+that secret kept pointing at `voxiro-app`. Nobody could see it by reading the
+repo. A project ID isn't a secret; only the key is.
+
+That mistargeting was a launch blocker for two reasons, not one:
+
+1. **No external reports in prod.** Every scraped report went to the dev
+   project.
+2. **No expiry in prod.** `expireOldReports()` is not a separate cron — it
+   runs inline at the end of every pipeline run (`src/index.ts` `main()` →
+   `runExpiryJob()`), and it expires **all** active reports past `expiresAt`,
+   community and external alike. Nothing else in either repo reads
+   `expiresAt`. So a project the pipeline never runs against has no expiry at
+   all: community reports stay on the map indefinitely until three users vote
+   them cleared, and `AllClearBanner` never fires again.
+
+Each target is fully independent — its own Firestore database, its own
+`geocodeCache`, its own dedup state. `fail-fast: false` keeps a prod failure
+from cancelling the dev job. Before running, each job asserts that the
+service-account key's `project_id` matches the target it was handed: a key
+from the wrong project authenticates perfectly well and silently writes to
+the wrong Firestore, which is the exact failure this matrix exists to prevent.
+
+Report lifetimes are not configurable per environment: `EXPIRY_HOURS` in
+`reportsService.ts` is a per-incident-type table (flood 4h, traffic 2h,
+accident 2h, road blockage 3h) mirroring `voxiro-app/constants/incidents.ts`
+and VOXIRO_MVP_SPEC.md §6. The old flat `REPORT_EXPIRY_HOURS` env var is gone
+-- it predated that table and made scraped floods clear 90 minutes early.
+
+### Before the first prod run
+
+A new Firebase project starts with **zero composite indexes**, and index
+deploys are a separate step from everything else — declaring an index in
+`firestore.indexes.json` does not create it. `expireOldReports()` queries
+`isActive == true && expiresAt <= now`, which needs one; without it the query
+throws, the `try/catch` in `reportsService.ts` swallows it to a log line, and
+expiry silently no-ops while the run still reports success. Verify with:
+
+```bash
+npx firebase-tools firestore:indexes --project voxiro-prod
+```
+
+If that prints `"indexes": []`, deploy them from the **app** repo (see the
+Firestore Indexes section below for why the file lives in two places):
+
+```bash
+cd ../voxiro-app && npx firebase-tools deploy --only firestore:indexes --project voxiro-prod
+```
+
+Firestore rules need the same treatment, and also only exist in the app repo.
+
+---
+
 ## Firestore Security Rules
 
 `voxiro-app/firestore.rules` is the only copy — this repo doesn't have its
@@ -170,18 +235,62 @@ Firestore rules allow, edit `voxiro-app/firestore.rules` directly.
 
 ---
 
+## Cloud Functions
+
+There are none here. All Cloud Functions live in `voxiro-app/functions/` and
+deploy from that repo.
+
+A `functions/` folder used to exist here holding a single `onReportCreated`
+push-notification trigger — the original geofencing prototype. It was
+superseded by `voxiro-app/functions/src/index.ts`, which now has eight
+functions including a rewritten `onReportCreatedNotify`, and the copy here was
+never updated or deployed again.
+
+It was worse than merely dead. Both repos declared `"codebase": "default"` in
+their `firebase.json`, and a functions deploy replaces everything in a
+codebase with whatever the deploying directory contains. So `firebase deploy
+--only functions` run from here would have deleted all eight live functions —
+profile creation, moderation, points, streaks, notifications — and left the one
+stale trigger in their place. Nothing warned about this; the two folders simply
+looked like separate projects.
+
+Removed along with `firebase.json`, so this directory can no longer deploy
+anything at all.
+
+---
+
 ## Firestore Indexes
 
-`firestore.indexes.json` here and in `voxiro-app/firestore.indexes.json` are
-kept **identical** — both list the full union of every index either repo's
-queries need (this pipeline's `expireOldReports`/dedup queries, plus the app's
-live map/feed listener). `firebase deploy --only firestore:indexes` is
-declarative: it reconciles the *live* index set to exactly match whatever's
-in the local file, deleting anything not listed. With two repos pointed at
-the same Firestore project, a deploy from either one with a partial file
-would silently delete indexes the other repo depends on — this already broke
-the app's map/feed once. If you add a new query here that needs a new index,
-add it to both files, in both repos, in the same change.
+This repo has **no** `firestore.indexes.json` and no `firebase.json`, and
+cannot deploy anything. `voxiro-app/firestore.indexes.json` is the only copy.
+
+That's for the same reason the Firestore rules copy was removed (section
+above): this pipeline reaches Firestore purely through the Admin SDK, so it
+needs the indexes to *exist*, not to declare them. Keeping a second copy here
+bought nothing and cost real safety — `firebase deploy --only
+firestore:indexes` is declarative, reconciling the live index set to exactly
+match the local file and deleting anything absent from it. The two copies had
+already drifted: the app's `submittedBy + timestamp` index (profile "my
+reports") was missing here, so a deploy run from this directory would have
+silently deleted it. The same class of mistake had already broken the app's
+map/feed once.
+
+Syncing the copies would have meant remembering, forever, to edit two files in
+two repos in one change. Deleting this one removes the failure mode instead of
+policing it. `firebase deploy` from this directory now fails outright with
+"Not in a Firebase app directory".
+
+**If you add a query here that needs a new index** (anything filtering or
+ordering on more than one field), add it to `voxiro-app/firestore.indexes.json`
+and deploy from there:
+
+```bash
+cd ../voxiro-app && npx firebase-tools deploy --only firestore:indexes --project voxiro-prod
+```
+
+The queries in this repo that currently depend on an index are
+`expireOldReports` (`isActive` + `expiresAt`) and the dedup lookup in
+`processors/deduplicator.ts`. Both are already covered.
 
 ---
 
