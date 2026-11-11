@@ -1,10 +1,11 @@
 name: Run Voxiro Data Pipeline
 
 on:
-  schedule:
-    # Every 30 minutes. GitHub may delay a run under load — that's fine,
-    # reports have a multi-hour expiry window.
-    - cron: "*/30 * * * *"
+  # Triggered every 30 minutes by the Google Cloud Scheduler job
+  # `voxiro-pipeline-trigger` (project voxiro-prod, europe-west1), which calls
+  # the workflow_dispatch API. GitHub's own `schedule` trigger was dropped: it
+  # only fired 4-7 times a day instead of 48, and GitHub auto-disables
+  # scheduled workflows in public repos after 60 days without a push.
   workflow_dispatch: {}
 
 # A delayed run must not overlap the next scheduled one — two concurrent runs
